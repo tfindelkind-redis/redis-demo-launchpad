@@ -10,7 +10,28 @@ Redis Demo Launchpad is a scalable GitOps platform for deploying **temporary clo
 
 ---
 
-## 📚 Documentation & User Guides
+## �️ Development with Codespaces
+
+This repository is configured for GitHub Codespaces with all necessary tools pre-installed:
+- Azure CLI
+- GitHub CLI
+- VS Code Azure extensions
+
+To create a Service Principal using Codespaces:
+
+1. Click the "Code" button on the repository and select "Create codespace on main"
+2. Once the codespace loads, open a terminal
+3. Log in to Azure:
+   ```bash
+   az login --use-device-code
+   ```
+4. Run the service principal creation script:
+   ```bash
+   chmod +x ./scripts/create_sp.sh
+   ./scripts/create_sp.sh
+   ```
+
+## �📚 Documentation & User Guides
 
 - [Admin Guide](docs/admin.md)
 - [Demo Creator Guide](docs/demo-creator.md)
