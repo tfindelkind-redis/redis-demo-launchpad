@@ -1,0 +1,25 @@
+name: Deploy Redis Cloud API
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Load config.json
+        id: config
+        run: |
+          CONFIG=$(cat config.json)
+          echo "REGION=$(echo $CONFIG | jq -r .region)" >> $GITHUB_ENV
+          echo "DATABASE_NAME=$(echo $CONFIG | jq -r .databaseName)" >> $GITHUB_ENV
+      - name: Deploy via Redis Cloud API
+        env:
+          REDIS_API_KEY: ${{ secrets.REDIS_API_KEY }}
+        run: |
+          # Example: create a database using Redis Cloud REST API
+          curl -X POST "https://api.redislabs.com/v1/databases" \
+            -H "Authorization: Bearer $REDIS_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"name": "$DATABASE_NAME", "region": "$REGION"}'

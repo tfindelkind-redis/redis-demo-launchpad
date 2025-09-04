@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Redis Demo Launcher</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f6f8fa;
+        }
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #e1e4e8;
+            padding-bottom: 20px;
+        }
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .demo-card {
+            background: white;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 16px;
+            transition: box-shadow 0.2s;
+        }
+        .demo-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .demo-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .demo-template {
+            font-size: 14px;
+            color: #586069;
+            margin-bottom: 12px;
+        }
+        .button-group {
+            display: flex;
+            gap: 8px;
+        }
+        .button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            flex: 1;
+            text-align: center;
+        }
+        .deploy {
+            background: #2ea44f;
+            color: white;
+            border: 1px solid rgba(27,31,35,0.15);
+        }
+        .deploy:hover {
+            background: #2c974b;
+        }
+        .cleanup {
+            background: #fafbfc;
+            color: #24292e;
+            border: 1px solid rgba(27,31,35,0.15);
+        }
+        .cleanup:hover {
+            background: #f3f4f6;
+        }
+        .search {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #e1e4e8;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .filter-button.active {
+            background: #0366d6;
+            color: white;
+            border-color: #0366d6;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Redis Demo Launcher</h1>
+        <input type="text" class="search" placeholder="Search demos..." id="searchInput">
+        <div class="filter-group" id="templateFilters">
+            <!-- Template filters will be added here dynamically -->
+        </div>
+    </div>
+    <div class="demo-grid" id="demoGrid">
+        <!-- Demo cards will be added here dynamically -->
+    </div>
+
+    <script>
+        function getRepoUrl() {
+            // If we're on localhost, use a default URL
+            if (window.location.hostname === 'localhost') {
+                return 'https://github.com/tfindelkind-redis/redis-demo-launchpad';
+            }
+            
+            // Extract organization and repository name from the URL
+            const pathParts = window.location.pathname.split('/');
+            const repoName = pathParts[1]; // First part after the domain
+            const orgName = window.location.hostname.replace('.github.io', '');
+            
+            console.log('Organization:', orgName);
+            console.log('Repository:', repoName);
+            
+            return `https://github.com/${orgName}/${repoName}`;
+        }
+
+        function renderDemos(demos) {
+            const grid = document.getElementById('demoGrid');
+            const repoUrl = getRepoUrl();
+            
+            console.log('Rendering demos:', demos);
+            console.log('Using repository URL:', repoUrl);
+            
+            grid.innerHTML = demos.map(demo => `
+                <div class="demo-card" data-template="${demo.template}">
+                    <div class="demo-title">${demo.name}</div>
+                    <div class="demo-template">${demo.template}</div>
+                    <div class="button-group">
+                        <a href="${repoUrl}/actions/workflows/${demo.name}-workflow.yml" 
+                           class="button deploy" target="_blank">Deploy</a>
+                        <a href="${repoUrl}/actions/workflows/${demo.name}-cleanup-workflow.yml" 
+                           class="button cleanup" target="_blank">Cleanup</a>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterDemos(demos) {
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            const selectedTemplate = document.querySelector('.filter-button.active').dataset.template;
+            
+            const filteredDemos = demos.filter(demo => {
+                const matchesSearch = demo.name.toLowerCase().includes(searchText);
+                const matchesTemplate = selectedTemplate === 'all' || demo.template === selectedTemplate;
+                return matchesSearch && matchesTemplate;
+            });
+            
+            renderDemos(filteredDemos);
+        }
+
+        async function loadDemos() {
+            const grid = document.getElementById('demoGrid');
+            grid.innerHTML = '<p>Loading demos...</p>';
+            
+            try {
+                console.log('Current location:', window.location.href);
+                console.log('Attempting to fetch index.json...');
+                
+                const response = await fetch('index.json');
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const text = await response.text();
+                console.log('Raw response:', text);
+                
+                let demos;
+                try {
+                    demos = JSON.parse(text);
+                } catch (parseError) {
+                    throw new Error(`JSON parse error: ${parseError.message}\nRaw content: ${text}`);
+                }
+                
+                console.log('Parsed demos:', demos);
+                
+                if (!Array.isArray(demos)) {
+                    throw new Error('Demos data is not an array');
+                }
+                
+                if (demos.length === 0) {
+                    grid.innerHTML = '<p>No demos found in index.json</p>';
+                    return;
+                }
+                
+                // Extract unique templates
+                const templates = [...new Set(demos.map(demo => demo.template))];
+                console.log('Found templates:', templates);
+                
+                // Create template filters
+                const filterGroup = document.getElementById('templateFilters');
+                filterGroup.innerHTML = `
+                    <button class="filter-button active" data-template="all">All (${demos.length})</button>
+                    ${templates.map(template => {
+                        const count = demos.filter(d => d.template === template).length;
+                        return `<button class="filter-button" data-template="${template}">${template} (${count})</button>`;
+                    }).join('')}
+                `;
+                
+                // Create demo cards
+                renderDemos(demos);
+                
+                // Add event listeners
+                document.getElementById('searchInput').addEventListener('input', () => filterDemos(demos));
+                filterGroup.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('filter-button')) {
+                        document.querySelectorAll('.filter-button').forEach(btn => btn.classList.remove('active'));
+                        e.target.classList.add('active');
+                        filterDemos(demos);
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading demos:', error);
+                grid.innerHTML = `
+                    <div style="color: red; padding: 20px; background: #ffebee; border-radius: 6px;">
+                        <h3>Error loading demos</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p><strong>Location:</strong> ${window.location.href}</p>
+                        <p>Please check the browser console for more details (F12 > Console)</p>
+                    </div>`;
+            }
+        }
+
+        // Start loading demos when the page loads
+        loadDemos();
+    </script>
+</body>
+</html>

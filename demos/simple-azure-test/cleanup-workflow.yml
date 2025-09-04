@@ -1,0 +1,69 @@
+name: azure-bicep-cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      demo:
+        description: 'Demo name to cleanup (e.g., test)'
+        required: true
+        default: 'test'
+  workflow_call:
+    inputs:
+      demo:
+        required: true
+        type: string
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Load config.json and set variables
+        id: config
+        run: |
+          echo "Loading configuration..."
+          CONFIG_PATH="demos/${{ github.event.inputs.demo || inputs.demo }}/config.json"
+          
+          # Read and export config values
+          echo "Setting environment variables..."
+          export RESOURCE_GROUP=$(jq -r '.resourceGroup' "$CONFIG_PATH")
+          
+          # Set to GitHub Environment
+          echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> $GITHUB_ENV
+          
+          # Debug output
+          echo "Resource Group to delete: $RESOURCE_GROUP"
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Check Resource Group Exists
+        id: check_rg
+        run: |
+          if az group exists --name "$RESOURCE_GROUP"; then
+            echo "Resource group '$RESOURCE_GROUP' found"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Resource group '$RESOURCE_GROUP' not found"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Delete Resource Group
+        if: steps.check_rg.outputs.exists == 'true'
+        run: |
+          echo "Deleting resource group '$RESOURCE_GROUP'..."
+          az group delete --name "$RESOURCE_GROUP" --yes --no-wait
+          echo "Resource group deletion initiated. This may take several minutes to complete."
+
+      - name: Cleanup Status
+        run: |
+          if [[ "${{ steps.check_rg.outputs.exists }}" == "true" ]]; then
+            echo "✅ Cleanup initiated for resource group '$RESOURCE_GROUP'"
+            echo "Note: Resource group deletion happens asynchronously and may take several minutes to complete."
+          else
+            echo "ℹ️ No cleanup needed - resource group '$RESOURCE_GROUP' not found"
+          fi

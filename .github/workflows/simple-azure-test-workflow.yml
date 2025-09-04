@@ -1,0 +1,109 @@
+name: simple-azure-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      demo:
+        description: 'Demo name'
+        required: true
+        default: 'simple-azure-test'
+  workflow_call:
+    inputs:
+      demo:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Load config.json and set variables
+        id: config
+        run: |
+          echo "Loading configuration..."
+          CONFIG_PATH="demos/${{ github.event.inputs.demo || inputs.demo }}/config.json"
+          
+          # Read and export config values
+          echo "Setting environment variables..."
+          export LOCATION=$(jq -r '.location' "$CONFIG_PATH")
+          export RESOURCE_GROUP=$(jq -r '.resourceGroup' "$CONFIG_PATH")
+          
+          # Generate a valid storage account name
+          export STORAGE_ACCOUNT_NAME="demostore$(date +%m%d)"
+          
+          # Set to GitHub Environment
+          echo "LOCATION=$LOCATION" >> $GITHUB_ENV
+          echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> $GITHUB_ENV
+          echo "STORAGE_ACCOUNT_NAME=$STORAGE_ACCOUNT_NAME" >> $GITHUB_ENV
+          
+          # Build deployment parameters string
+          PARAMS="--parameters location=$LOCATION --parameters storageAccountName=$STORAGE_ACCOUNT_NAME"
+          echo "PARAMS=$PARAMS" >> $GITHUB_ENV
+          
+          # Debug output
+          echo "Location: $LOCATION"
+          echo "Resource Group: $RESOURCE_GROUP"
+          echo "Storage Account: $STORAGE_ACCOUNT_NAME"
+          echo "Parameters: $PARAMS"
+      - name: Enable Azure CLI Debug Mode
+        run: |
+          echo "Setting Azure CLI debug mode..."
+          echo "AZURE_CORE_OUTPUT=json" >> $GITHUB_ENV
+          echo "AZURE_LOG_LEVEL=debug" >> $GITHUB_ENV
+          
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Ensure Resource Group Exists
+        id: rg
+        run: |
+          echo "Checking resource group..."
+          # Try to show resource group and capture the output
+          if ! az group show --name "$RESOURCE_GROUP" 2>/dev/null; then
+            echo "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
+            az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+          else
+            echo "Resource group '$RESOURCE_GROUP' exists"
+          fi
+          # Verify resource group exists after create attempt
+          if ! az group show --name "$RESOURCE_GROUP" >/dev/null 2>&1; then
+            echo "::error::Failed to create or find resource group '$RESOURCE_GROUP'"
+            exit 1
+          fi
+
+      - name: Preview Changes with What-If
+        if: success()
+        run: |
+          echo "Previewing changes with what-if..."
+          echo "Resource Group: $RESOURCE_GROUP"
+          echo "Parameters: $PARAMS"
+          az deployment group what-if \
+            --name deploy-$(date +%s) \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file demos/${{ github.event.inputs.demo || inputs.demo }}/deploy.bicep \
+            $PARAMS
+
+      - name: Deploy Bicep
+        if: success()
+        run: |
+          echo "Deploying Bicep template..."
+          echo "Resource Group: $RESOURCE_GROUP"
+          echo "Template File: demos/${{ github.event.inputs.demo || inputs.demo }}/deploy.bicep"
+          echo "Parameters: $PARAMS"
+          echo "Validating deployment..."
+          az deployment group validate \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file demos/${{ github.event.inputs.demo || inputs.demo }}/deploy.bicep \
+            $PARAMS \
+            --debug
+          
+          echo "Creating deployment..."
+          az deployment group create \
+            --name deploy-$(date +%s) \
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file demos/${{ github.event.inputs.demo || inputs.demo }}/deploy.bicep \
+            $PARAMS \
+            --debug

@@ -1,0 +1,21 @@
+name: Dispatch Demo Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      demo:
+        description: 'Demo name (e.g., test, demo-001-azure-bicep)'
+        required: true
+        default: 'test'
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Trigger demo workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run "${{ github.event.inputs.demo }}-workflow.yml" --repo "${{ github.repository }}"

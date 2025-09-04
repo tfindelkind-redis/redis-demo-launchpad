@@ -1,0 +1,88 @@
+name: Deploy Launcher to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'site/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed for updating README
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed for pushing changes
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Update README URL
+        run: |
+          cd site
+          node -e "
+            const fs = require('fs');
+            const readmePath = '../README.md';
+            let readme = fs.readFileSync(readmePath, 'utf8');
+            const repoUrl = 'https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}';
+            readme = readme.replace('{org-url}', repoUrl);
+            fs.writeFileSync(readmePath, readme);
+          "
+          
+      - name: Commit README changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update launcher URL in README"
+          git push
+          
+      - name: Prepare site files
+        run: |
+          echo "Creating temporary directory..."
+          mkdir -p site_temp
+          
+          echo "Copying launcher.html..."
+          cp site/launcher.html site_temp/
+          
+          echo "Checking index.json..."
+          if [ -f "site/index.json" ]; then
+            echo "Content of index.json:"
+            cat site/index.json
+            echo "Copying index.json..."
+            cp site/index.json site_temp/
+          else
+            echo "Error: index.json not found in site directory"
+            exit 1
+          fi
+          
+          echo "Files in site_temp:"
+          ls -la site_temp/
+          
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './site_temp'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4  # Updated to v4

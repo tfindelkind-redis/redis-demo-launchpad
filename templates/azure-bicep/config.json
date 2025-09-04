@@ -1,0 +1,5 @@
+{
+  "location": "westeurope",
+  "resourceGroup": "demo-rg",
+  "storageAccountName": "demo{{DEMO_NAME}}{{TIMESTAMP}}"
+}

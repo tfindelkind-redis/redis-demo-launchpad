@@ -1,0 +1,7 @@
+[
+  {
+    "name": "simple-azure-test",
+    "id": "D9429771-F14E-40E8-BE8E-CAD53B1AF256",
+    "template": "azure-bicep"
+  }
+]
