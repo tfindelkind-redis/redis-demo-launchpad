@@ -39,6 +39,7 @@ To create a Service Principal using Codespaces:
 - [Problem Reporter Guide](docs/reporter.md)
 - [Problem Resolver Guide](docs/resolver.md)
 - [Reference Guide](docs/reference.md)
+- [Monorepo Handling](docs/monorepo.md)
 - [FAQ & Troubleshooting](docs/faq.md)
 - [Contributing Guide](CONTRIBUTING.md)
 
@@ -153,13 +154,6 @@ To create a Service Principal using Codespaces:
 - **Automated Lifecycle:** Includes automated cleanup, status tracking, and dashboard for live visibility.
 
 ---
-
-## 📚 Documentation
-
-See the documentation links above for guides on onboarding, demo creation, troubleshooting, and customization for each user role.
-
----
-
 ## 📝 Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
